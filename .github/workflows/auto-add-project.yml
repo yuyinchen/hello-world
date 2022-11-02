@@ -1,0 +1,62 @@
+name: Auto Add Project
+
+on:
+  pull_request:
+    types:
+      - closed
+
+jobs:
+  auto-add-project:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v6
+        with:
+          script: |
+            if (context.payload.pull_request.merged === false) {
+              return
+            }
+
+            const query = 'query ($owner: String!, $name: String!, $prNumber: Int!) { repository(owner: $owner, name: $name) { pullRequest(number: $prNumber) { id title closingIssuesReferences(first: 10) { nodes { id title number projectCards(first: 5) { nodes { project { name } } } } } } projects (first:2, states: OPEN) { nodes { name url id columns (first:1) { nodes { id name } } } } } }';
+            const variables = {
+              owner: context.repo.owner,
+              name: context.repo.repo,
+              prNumber: context.payload.pull_request.number
+            }
+            const result = await github.graphql(query, variables)
+            const pullRequest = result.repository.pullRequest;
+
+            if (pullRequest.closingIssuesReferences.nodes.length === 0) {
+              console.log(pullRequest.title + '沒有連結issues');
+
+              const mutation = 'mutation ($subjectId: ID!, $body: String!) { addComment(input: {subjectId:$subjectId,body:$body}) { commentEdge { node { id } } } }'
+              const mutationVars = {
+                "subjectId": pullRequest.id,
+                "body": '請加入issue'
+              }
+              const updateResult = await github.graphql(mutation, mutationVars)
+
+              console.log(updateResult);
+            }
+
+            const projectNumber = 1
+            let query2 = 'query ($repoName: String!, $projectNumber: Int!, $ownerName: String!, $number: Int!) {   repository(name: $repoName, owner: $ownerName) {     issue(number: $number) {       id       projectsV2(first: 10) {         nodes {           id           number         }       }     }   }   }';
+
+            let variables2 = {
+              ownerName: context.repo.owner,
+              repoName: context.repo.repo,
+              projectNumber: projectNumber,
+              number: pullRequest.closingIssuesReferences.nodes[0].number
+            }
+            let result2 = await github.graphql(query2, variables2)
+
+            console.log(result2)
+
+            if (result2.repository.issue.projectsV2.nodes.length === 0) {
+              query2 = 'mutation ($projectId: ID!, $contentId: ID!){ addProjectV2ItemById(input: {projectId:$projectId, contentId: $contentId}) { item { id } } }';
+              variables2 = {
+                projectId: result2.organization.projectV2.id,
+                contentId: result2.repository.issue.id
+              }
+              result2 = await github.graphql(query2, variables2)
+              console.log(result2)
+            }
