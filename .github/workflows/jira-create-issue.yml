@@ -1,0 +1,28 @@
+on: workflow_dispatch
+
+name: Jira Create Issue
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: Jira Example
+    steps:
+    - name: Jira connect
+      uses: govcms-extras/github-action-jira-connect@main
+      env:
+        JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+        JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+        JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+
+    - name: Create
+      id: create
+      uses: atlassian/gajira-create@v3
+      with:
+        project: BE2PROD
+        issuetype: Story
+        summary: Create issue by ${{ github.repository }}
+        description: description
+        fields: '{"Labels": "test"}'
+
+    - name: Log created issue
+      run: echo "Issue ${{ steps.create.outputs.issue }} was created"
